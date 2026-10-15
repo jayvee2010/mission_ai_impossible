@@ -29,6 +29,14 @@ export const DEFAULT_TEAMS: TeamRecord[] = [
 
 const LOCAL_LEADERBOARD_KEY = 'mission_ai_leaderboard_v1';
 
+// Initialize Google Sheets Web App if environment variable is provided
+const googleSheetsUrl = import.meta.env.VITE_GOOGLE_SHEETS_URL;
+export const isGoogleSheetsConnected = Boolean(
+  googleSheetsUrl &&
+  !googleSheetsUrl.includes('placeholder') &&
+  !googleSheetsUrl.includes('your-script')
+);
+
 // Initialize Supabase if environment variables are provided
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -96,7 +104,8 @@ export async function recordTeamCompletion(
     team_code: teamCode.toUpperCase(),
     team_name: teamCode.toUpperCase() === 'TEAM-001' ? 'ALPHA SQUADRON' :
                teamCode.toUpperCase() === 'TEAM-002' ? 'BRAVO TACTICAL' :
-               teamCode.toUpperCase() === 'TEAM-TEST' ? 'CYBER SPECIALIST' : 'RECOVERY UNIT',
+               teamCode.toUpperCase() === 'TEAM-TEST' ? 'CYBER SPECIALIST' :
+               teamCode.toUpperCase() === 'GHOST-01' ? 'SPECTRE OPERATIVE' : 'RECOVERY UNIT',
     time_taken_seconds: timeTakenSeconds,
     formatted_time,
     challenges_completed: challengesCompleted,
@@ -104,7 +113,22 @@ export async function recordTeamCompletion(
     completed_at: new Date().toISOString(),
   };
 
-  // 1. Save to Supabase if connected
+  // 1. Save to Google Sheets if connected
+  if (isGoogleSheetsConnected && googleSheetsUrl) {
+    try {
+      await fetch(googleSheetsUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(newEntry),
+        mode: 'no-cors'
+      });
+      console.log('[Database] Team completion synced to Google Sheets:', newEntry.team_code);
+    } catch (err) {
+      console.warn('[Database] Google Sheets save warning:', err);
+    }
+  }
+
+  // 2. Save to Supabase if connected
   if (supabase) {
     try {
       const { error } = await supabase
@@ -127,7 +151,7 @@ export async function recordTeamCompletion(
     }
   }
 
-  // 2. Always persist locally as well for immediate reliability
+  // 3. Always persist locally as well for immediate reliability
   const localList = getLocalLeaderboard();
   const existingIndex = localList.findIndex((item) => item.team_code === newEntry.team_code);
   if (existingIndex >= 0) {
@@ -147,6 +171,22 @@ export async function recordTeamCompletion(
  * Fetch leaderboard sorted by time taken (fastest teams first)
  */
 export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
+  // 1. Try Google Sheets if connected
+  if (isGoogleSheetsConnected && googleSheetsUrl) {
+    try {
+      const response = await fetch(googleSheetsUrl);
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data) && data.length > 0) {
+          return data as LeaderboardEntry[];
+        }
+      }
+    } catch (err) {
+      console.warn('[Database] Failed to fetch from Google Sheets, trying fallback:', err);
+    }
+  }
+
+  // 2. Try Supabase if connected
   if (supabase) {
     try {
       const { data, error } = await supabase
@@ -162,7 +202,7 @@ export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
     }
   }
 
-  // Return local sorted leaderboard
+  // 3. Return local sorted leaderboard
   const local = getLocalLeaderboard();
   local.sort((a, b) => a.time_taken_seconds - b.time_taken_seconds);
   return local;

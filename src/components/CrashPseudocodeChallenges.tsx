@@ -20,11 +20,15 @@ export const CrashPseudocodeChallenges: React.FC<{
 }> = ({ onAllCompleted }) => {
   const { 
     solvedChallenges, 
-    markChallengeSolved, 
-    setCockpitAttitude 
+    markChallengeSolved 
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<number>(1);
+  const [activeTab, setActiveTab] = useState<number>(() => {
+    if (!solvedChallenges.includes(1)) return 1;
+    if (!solvedChallenges.includes(2)) return 2;
+    if (!solvedChallenges.includes(3)) return 3;
+    return 1;
+  });
 
   // ----------------------------------------------------
   // CHALLENGE 1 STATE: Stall & Compressor Surge Recovery
@@ -33,8 +37,12 @@ export const CrashPseudocodeChallenges: React.FC<{
   const [c1ThrustSequence, setC1ThrustSequence] = useState<string>('MAX_TOGA_IMMEDIATE');
   const [c1Slats, setC1Slats] = useState<string>('CLEAN_WING_NO_SLATS');
   const [c1TypedCode, setC1TypedCode] = useState<string>('');
-  const [c1Feedback, setC1Feedback] = useState<string>('STALL WARNING ACTIVE: Telemetry indicates AOA +22.4° at 126 KIAS. Configure recovery logic.');
-  const [c1Success, setC1Success] = useState<boolean>(false);
+  const [c1Success, setC1Success] = useState<boolean>(() => solvedChallenges.includes(1));
+  const [c1Feedback, setC1Feedback] = useState<string>(() => 
+    solvedChallenges.includes(1) 
+      ? 'SUCCESS: Module 01 cleared. Anti-stall recovery active.' 
+      : 'STALL WARNING ACTIVE: Telemetry indicates AOA +22.4° at 126 KIAS. Configure recovery logic.'
+  );
 
 
 
@@ -63,13 +71,17 @@ export const CrashPseudocodeChallenges: React.FC<{
 
   // CHALLENGE 2 STATE: CG & Fuel Jettison Mathematics
   // ----------------------------------------------------
-  const [c2LoopCondition, setC2LoopCondition] = useState<string>('WHILE (gross_weight < 65000_KG)');
-  const [c2Crossfeed, setC2Crossfeed] = useState<string>('ISOLATED_CLOSED');
-  const [c2TypedSeconds, setC2TypedSeconds] = useState<string>('');
-  const [currentWeight, setCurrentWeight] = useState<number>(78500);
+  const [c2LoopCondition, setC2LoopCondition] = useState<string>(() => solvedChallenges.includes(2) ? 'WHILE (gross_weight > 65000_KG)' : 'WHILE (gross_weight < 65000_KG)');
+  const [c2Crossfeed, setC2Crossfeed] = useState<string>(() => solvedChallenges.includes(2) ? 'BALANCED_OPEN' : 'ISOLATED_CLOSED');
+  const [c2TypedSeconds, setC2TypedSeconds] = useState<string>(() => solvedChallenges.includes(2) ? '54' : '');
+  const [currentWeight, setCurrentWeight] = useState<number>(() => solvedChallenges.includes(2) ? 65000 : 78500);
   const [isDumping, setIsDumping] = useState<boolean>(false);
-  const [c2Success, setC2Success] = useState<boolean>(false);
-  const [c2Feedback, setC2Feedback] = useState<string>('GROSS WEIGHT: 78,500 KG. Maximum Structural Landing Weight: 65,000 KG. Compute required jettison time.');
+  const [c2Success, setC2Success] = useState<boolean>(() => solvedChallenges.includes(2));
+  const [c2Feedback, setC2Feedback] = useState<string>(() => 
+    solvedChallenges.includes(2) 
+      ? 'JETTISON SUCCESS: Exactly 13,500 KG dumped. Aircraft at 65,000 KG MLW. MODULE 02 CLEARED.' 
+      : 'GROSS WEIGHT: 78,500 KG. Maximum Structural Landing Weight: 65,000 KG. Compute required jettison time.'
+  );
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -87,22 +99,6 @@ export const CrashPseudocodeChallenges: React.FC<{
           return next;
         });
       }, 20);
-    }
-    return () => clearInterval(interval);
-    if (isDumping) {
-      interval = setInterval(() => {
-        setCurrentWeight((prev) => {
-          const next = Math.max(65000, prev - 1200);
-          if (next <= 65000) {
-            setIsDumping(false);
-            setC2Success(true);
-            setC2Feedback('JETTISON SUCCESS: Exactly 13,500 KG dumped in 54 seconds. Aircraft at 65,000 KG MLW. MODULE 02 CLEARED.');
-            markChallengeSolved(2);
-            soundFx.playSuccess();
-          }
-          return next;
-        });
-      }, 120);
     }
     return () => clearInterval(interval);
   }, [isDumping, markChallengeSolved]);
@@ -137,12 +133,30 @@ export const CrashPseudocodeChallenges: React.FC<{
   // ----------------------------------------------------
   // CHALLENGE 3 STATE: Black Box Checksum & Hex Token
   // ----------------------------------------------------
-  const [c3Squawk, setC3Squawk] = useState<string>('1200');
-  const [c3Freq, setC3Freq] = useState<string>('118.0');
-  const [c3CsmuMode, setC3CsmuMode] = useState<string>('STANDBY');
-  const [c3TypedToken, setC3TypedToken] = useState<string>('');
-  const [c3Feedback, setC3Feedback] = useState<string>('BLACK BOX BEACON OFFLINE: Transmit international distress squawk, guard channel, and construct authorization token.');
-  const [c3Success, setC3Success] = useState<boolean>(false);
+  const [c3Squawk, setC3Squawk] = useState<string>(() => solvedChallenges.includes(3) ? '7700' : '1200');
+  const [c3Freq, setC3Freq] = useState<string>(() => solvedChallenges.includes(3) ? '121.5' : '118.0');
+  const [c3CsmuMode, setC3CsmuMode] = useState<string>(() => solvedChallenges.includes(3) ? 'ARMORED_TITANIUM_LOCK' : 'STANDBY');
+  const [c3TypedToken, setC3TypedToken] = useState<string>(() => solvedChallenges.includes(3) ? '7700-121-MAYDAY' : '');
+  const [c3Feedback, setC3Feedback] = useState<string>(() => 
+    solvedChallenges.includes(3) 
+      ? 'BEACON LOCKED: Squawk 7700 broadcasting on 121.5 MHz. Dual CVR/FDR units secured. MODULE 03 CLEARED.' 
+      : 'BLACK BOX BEACON OFFLINE: Transmit international distress squawk, guard channel, and construct authorization token.'
+  );
+  const [c3Success, setC3Success] = useState<boolean>(() => solvedChallenges.includes(3));
+
+  // Sync state if solvedChallenges changes dynamically
+  useEffect(() => {
+    if (solvedChallenges.includes(1)) {
+      setC1Success(true);
+    }
+    if (solvedChallenges.includes(2)) {
+      setC2Success(true);
+      setCurrentWeight(65000);
+    }
+    if (solvedChallenges.includes(3)) {
+      setC3Success(true);
+    }
+  }, [solvedChallenges]);
 
   const verifyChallenge3 = () => {
     if (c3Squawk !== '7700') {
@@ -347,11 +361,16 @@ export const CrashPseudocodeChallenges: React.FC<{
             </div>
 
             <button
+              disabled={c1Success}
               onClick={verifyChallenge1}
-              className="w-full sm:w-auto px-8 py-4 bg-red-600 hover:bg-red-500 text-white font-bold text-sm tracking-widest rounded-xl shadow-[0_0_25px_rgba(239,68,68,0.7)] flex items-center justify-center gap-2 transition-all hover:scale-105"
+              className={`w-full sm:w-auto px-8 py-4 font-bold text-sm tracking-widest rounded-xl shadow-[0_0_25px_rgba(239,68,68,0.7)] flex items-center justify-center gap-2 transition-all ${
+                c1Success
+                  ? 'bg-zinc-700 text-zinc-400 cursor-not-allowed opacity-50'
+                  : 'bg-red-600 hover:bg-red-500 text-white hover:scale-105'
+              }`}
             >
               <Play size={16} />
-              <span>TEST RECOVERY CODE</span>
+              <span>{c1Success ? 'MODULE CLEARED' : 'TEST RECOVERY CODE'}</span>
             </button>
           </div>
         </motion.div>
@@ -615,11 +634,16 @@ export const CrashPseudocodeChallenges: React.FC<{
             </div>
 
             <button
+              disabled={c3Success}
               onClick={verifyChallenge3}
-              className="w-full sm:w-auto px-8 py-4 bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-sm tracking-widest rounded-xl shadow-[0_0_25px_rgba(6,182,212,0.7)] flex items-center justify-center gap-2 transition-all hover:scale-105"
+              className={`w-full sm:w-auto px-8 py-4 font-bold text-sm tracking-widest rounded-xl shadow-[0_0_25px_rgba(6,182,212,0.7)] flex items-center justify-center gap-2 transition-all ${
+                c3Success
+                  ? 'bg-zinc-700 text-zinc-400 cursor-not-allowed opacity-50'
+                  : 'bg-cyan-500 hover:bg-cyan-400 text-black hover:scale-105'
+              }`}
             >
               <Play size={16} />
-              <span>TRANSMIT & ARM FDR</span>
+              <span>{c3Success ? 'MODULE CLEARED' : 'TRANSMIT & ARM FDR'}</span>
             </button>
           </div>
         </motion.div>

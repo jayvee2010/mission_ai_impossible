@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { fetchLeaderboard, isSupabaseConnected } from '../lib/database';
+import { fetchLeaderboard, isSupabaseConnected, isGoogleSheetsConnected } from '../lib/database';
 import type { LeaderboardEntry } from '../lib/database';
 import { soundFx } from '../lib/audio';
+import { useStore } from '../store/useStore';
 import { 
   Trophy, 
   Clock, 
@@ -10,13 +11,16 @@ import {
   RefreshCw, 
   Database, 
   CheckCircle2, 
-  Users
+  Users,
+  Download,
+  RotateCcw
 } from 'lucide-react';
 
 export const LeaderboardModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
 }> = ({ isOpen, onClose }) => {
+  const { resetMissionProgress } = useStore();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -32,6 +36,30 @@ export const LeaderboardModal: React.FC<{
       loadData();
     }
   }, [isOpen]);
+
+  const handleExportCSV = () => {
+    if (entries.length === 0) return;
+    soundFx.playClick();
+    const headers = ['Rank', 'Team Code', 'Team Name', 'Time Taken (Seconds)', 'Formatted Time', 'Challenges Completed', 'Status', 'Completed At'];
+    const rows = entries.map((entry, index) => [
+      index + 1,
+      `"${entry.team_code}"`,
+      `"${entry.team_name}"`,
+      entry.time_taken_seconds,
+      `"${entry.formatted_time}"`,
+      entry.challenges_completed,
+      `"${entry.status}"`,
+      `"${entry.completed_at}"`
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `mission_leaderboard_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   if (!isOpen) return null;
 
@@ -53,25 +81,64 @@ export const LeaderboardModal: React.FC<{
               <h2 className="text-xl md:text-2xl font-bold tracking-[0.2em] text-yellow-300">
                 MISSION LEADERBOARD // WINNERS BOARD
               </h2>
-              <div className="flex items-center gap-3 text-xs text-gray-300 mt-1">
+              <div className="flex flex-wrap items-center gap-3 text-xs text-gray-300 mt-1">
                 <span>RANKED BY LEAST TIME TAKEN TO COMPLETE RECOVERY</span>
                 <span className="flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border border-cyan-400/50 bg-cyan-950/60 text-cyan-300">
                   <Database size={11} />
-                  {isSupabaseConnected ? 'POSTGRESQL CLOUD' : 'LOCAL PERSISTENT STORE'}
+                  {isGoogleSheetsConnected 
+                    ? 'GOOGLE SHEETS CLOUD' 
+                    : isSupabaseConnected 
+                    ? 'POSTGRESQL CLOUD' 
+                    : 'LOCAL PERSISTENT STORE'}
                 </span>
               </div>
             </div>
           </div>
 
-          <button
-            onClick={() => {
-              soundFx.playClick();
-              onClose();
-            }}
-            className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                if (window.confirm('ADMIN OVERRIDE: Reset current mission progress and restart from the beginning for a new team?')) {
+                  soundFx.playAlarm();
+                  resetMissionProgress();
+                  onClose();
+                }
+              }}
+              title="Admin Reset Progress for New Team"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-950/80 hover:bg-red-900 border border-red-500/60 rounded-lg text-red-300 text-xs font-bold transition-all"
+            >
+              <RotateCcw size={14} />
+              <span>RESET RUN</span>
+            </button>
+            <button
+              onClick={handleExportCSV}
+              disabled={entries.length === 0}
+              title="Download results as Excel/CSV"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-400/60 rounded-lg text-emerald-300 text-xs font-bold transition-all disabled:opacity-40"
+            >
+              <Download size={14} />
+              <span>EXPORT CSV</span>
+            </button>
+            <button
+              onClick={() => {
+                soundFx.playClick();
+                loadData();
+              }}
+              title="Refresh Leaderboard"
+              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+            >
+              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            </button>
+            <button
+              onClick={() => {
+                soundFx.playClick();
+                onClose();
+              }}
+              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Table Content */}
